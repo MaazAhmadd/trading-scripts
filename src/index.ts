@@ -37,18 +37,55 @@ const client = new RestClientV5(restClientOptions);
 
 //   .then((r) => console.log(JSON.stringify(r, null, 2)));
 async function placeTestOrder() {
-  const symbol = "1000PEPEUSDT";
+  // BTCUSDT ETHUSDT SOLUSDT AVAXUSDT 1000PEPEUSDT 10000SATSUSDT
+  const symbol = "10000SATSUSDT";
+  const tradeCounts = 10;
   try {
     // Fetch account information
     // const accountInfo = await client.getAccountInfo();
     // console.log("Account Info:", accountInfo);
-    const side = getPositionSide();
-    await openPosition(5000, symbol, side);
-    await delay(60000);
-    await closePosition(symbol, side);
+    for (let i = 0; i < tradeCounts; i++) {
+      const positionSize = getPositionSize();
+      const delayBetweenTrades = getPositionTime();
+      const side = getPositionSide();
+      await openPosition(positionSize, symbol, side);
+      await delay(delayBetweenTrades);
+      await closePosition(symbol, side);
+      console.log(
+        `Completed ${
+          i + 1
+        } out of ${tradeCounts} iterations, with ${positionSize}usdt in ${delayBetweenTrades}ms`
+      );
+    }
+    console.log(`Completed all ${tradeCounts} test orders.`);
+    logTradeSummary(symbol, tradeCounts);
   } catch (error) {
     console.error("Error placing test order:", error);
   }
+}
+
+async function logTradeSummary(symbol: string, tradeCounts: number) {
+  let cumulativePnl = 0;
+  const trades: TradeSummary[] = [];
+
+  const closedPnLs = await fetchClosedPnL(symbol, tradeCounts);
+  closedPnLs.forEach((pnl) => {
+    cumulativePnl += pnl.pnl;
+    trades.push({
+      symbol: pnl.symbol,
+      side: pnl.side,
+      entryPrice: pnl.entryPrice,
+      exitPrice: pnl.exitPrice,
+      qty: pnl.qty,
+      pnl: pnl.pnl,
+    });
+  });
+
+  console.log("Trades Summary:");
+  trades.reverse().forEach((trade, index) => {
+    console.log(`Trade ${index + 1}:`, trade);
+  });
+  console.log(`Cumulative PnL: ${cumulativePnl}`);
 }
 
 async function openPosition(
@@ -138,10 +175,6 @@ async function getOpenPositionForSide(
       throw new Error(response.retMsg);
     }
     const positions = response.result.list;
-    console.log(
-      "Open Positions:",
-      positions.find((position) => position.side === "Sell")
-    );
     return positions.find((position) => position.side === side) || null;
   } catch (error) {
     console.error("Error fetching open positions:", error);
@@ -285,6 +318,13 @@ function getPositionSide() {
     console.log("open SHORT");
     return "Sell";
   }
+}
+
+function getPositionTime(min: number = 20000, max: number = 60000): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function getPositionSize(min: number = 2000, max: number = 5000): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // function countdown(from) {

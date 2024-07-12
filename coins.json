@@ -194,5 +194,54 @@
     },
     "retExtInfo": {},
     "time": 1720779117173
+  },
+  "10000SATSUSDT": {
+    "retCode": 0,
+    "retMsg": "OK",
+    "result": {
+      "category": "linear",
+      "list": [
+        {
+          "symbol": "10000SATSUSDT",
+          "contractType": "LinearPerpetual",
+          "status": "Trading",
+          "baseCoin": "10000SATS",
+          "quoteCoin": "USDT",
+          "launchTime": "1700127695000",
+          "deliveryTime": "0",
+          "deliveryFeeRate": "",
+          "priceScale": "6",
+          "leverageFilter": {
+            "minLeverage": "1",
+            "maxLeverage": "25.00",
+            "leverageStep": "0.01"
+          },
+          "priceFilter": {
+            "minPrice": "0.000001",
+            "maxPrice": "1.999998",
+            "tickSize": "0.000001"
+          },
+          "lotSizeFilter": {
+            "maxOrderQty": "132210000",
+            "minOrderQty": "100",
+            "qtyStep": "100",
+            "postOnlyMaxOrderQty": "132210000",
+            "maxMktOrderQty": "18580000",
+            "minNotionalValue": "5"
+          },
+          "unifiedMarginTrade": true,
+          "fundingInterval": 480,
+          "settleCoin": "USDT",
+          "copyTrading": "both",
+          "upperFundingRate": "0.015",
+          "lowerFundingRate": "-0.015",
+          "isPreListing": false,
+          "preListingInfo": null
+        }
+      ],
+      "nextPageCursor": ""
+    },
+    "retExtInfo": {},
+    "time": 1720793688941
   }
 }
