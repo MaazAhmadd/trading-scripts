@@ -1,15 +1,30 @@
 import {
+  APIResponseV3WithTime,
+  CategoryV5,
   GetOrderbookParamsV5,
+  InstrumentInfoResponseV5,
+  LinearInverseInstrumentInfoV5,
   LinearPositionIdx,
   OrderParamsV5,
   OrderSideV5,
   OrderbookLevelV5,
+  PositionInfoParamsV5,
+  PositionV5,
   RestClientOptions,
   RestClientV5,
   SetLeverageParamsV5,
 } from "bybit-api";
 
 import * as fs from "fs";
+
+interface TradeSummary {
+  symbol: string;
+  side: "Buy" | "Sell";
+  entryPrice: number;
+  exitPrice: number;
+  qty: number;
+  pnl: number;
+}
 
 const restClientOptions: RestClientOptions = {
   key: "OzERtp8401q8IvaoXf",
@@ -20,22 +35,17 @@ const restClientOptions: RestClientOptions = {
 
 const client = new RestClientV5(restClientOptions);
 
+//   .then((r) => console.log(JSON.stringify(r, null, 2)));
 async function placeTestOrder() {
+  const symbol = "1000PEPEUSDT";
   try {
     // Fetch account information
-    const accountInfo = await client.getAccountInfo();
-    console.log("Account Info:", accountInfo);
-
-    // const instrumentsInfo = await client.getInstrumentsInfo({
-    //   category: "linear",
-    //   symbol: "BTCUSDT",
-    // });
-
-    // console.log("Instruments Info:", instrumentsInfo);
-    // save intrument info to json file:
-    // fs.writeFileSync("BTCUSDT.json", JSON.stringify(instrumentsInfo, null, 2));
-    "0.1".split(".")[1] && "0.1".split(".")[1].length==1
-    await openPosition(5000, "BTCUSDT", "Buy", 20);
+    // const accountInfo = await client.getAccountInfo();
+    // console.log("Account Info:", accountInfo);
+    const side = getPositionSide();
+    await openPosition(5000, symbol, side);
+    await delay(60000);
+    await closePosition(symbol, side);
   } catch (error) {
     console.error("Error placing test order:", error);
   }
@@ -48,17 +58,6 @@ async function openPosition(
   adjustLeverage: number = 0
 ): Promise<any> {
   try {
-    // Validate parameters
-    if (amountUsdt <= 0) {
-      throw new Error("Amount in USDT must be greater than zero.");
-    }
-    if (!symbol) {
-      throw new Error("Symbol must be provided.");
-    }
-    if (!side) {
-      throw new Error("Side must be provided.");
-}                                                                                                                                                                                             
-
     // Adjust leverage if required
     if (adjustLeverage > 0) {
       await setLeverage(symbol, adjustLeverage);
@@ -66,19 +65,27 @@ async function openPosition(
 
     // Fetch the current price for the symbol
     const currentPrice = await fetchCurrentPrice(symbol);
+    const {
+      lotSizeFilter: { qtyStep },
+    } = await getInstrumentInfo(symbol);
 
     // Calculate the quantity in base coin
-    const                                                                                                                                                                                                                                                                                           qty = String((amountUsdt / currentPrice).toFixed(3));
-    console.log(`Calculated Quantity: ${qty} ${symbol.split("USDT")[0]}`);
+    let qty = amountUsdt / currentPrice;
+
+    // Adjust the quantity to meet the qtyStep requirements
+    qty = Math.floor(qty / parseFloat(qtyStep)) * parseFloat(qtyStep);
+    const qtyString = qty.toFixed(qtyStep.split(".")[1]?.length || 0);
+
+    console.log(`Calculated Quantity: ${qtyString} ${symbol.split("USDT")[0]}`);
 
     // Place the order
     const orderParams: OrderParamsV5 = {
       category: "linear",
-      symbol: "BTCUSDT",
-      side: "Buy",
+      symbol,
+      side,
       orderType: "Market",
-      marketUnit: "quoteCoin",
-      qty:"5000",
+      qty: qtyString,
+      positionIdx: side == "Buy" ? 1 : 2,
     };
     const orderResponse = await client.submitOrder(orderParams);
 
@@ -86,6 +93,117 @@ async function openPosition(
     return orderResponse;
   } catch (error) {
     console.error("Error opening position:", error);
+    throw error;
+  }
+}
+
+async function closePosition(symbol: string, side: OrderSideV5): Promise<any> {
+  try {
+    const oppositeSide: OrderSideV5 = side === "Buy" ? "Sell" : "Buy";
+    const position = await getOpenPositionForSide(symbol, side);
+    if (position && Number(position.size) > 0) {
+      const orderParams: OrderParamsV5 = {
+        category: "linear",
+        symbol,
+        side: oppositeSide,
+        orderType: "Market",
+        qty: position.size,
+        // timeInForce: 'GTC',
+        // closeOnTrigger: false,
+        // reduceOnly: true, // This ensures the order only reduces the position
+        positionIdx: position.positionIdx,
+      };
+      const orderResponse = await client.submitOrder(orderParams);
+      console.log("Close Order Response:", orderResponse);
+      return orderResponse;
+    } else {
+      console.log(`No open ${side} positions found for ${symbol}`);
+    }
+  } catch (error) {
+    console.error("Error closing position:", error);
+    throw error;
+  }
+}
+
+async function getOpenPositionForSide(
+  symbol: string,
+  side: OrderSideV5
+): Promise<PositionV5 | null> {
+  try {
+    const response = await client.getPositionInfo({
+      category: "linear",
+      symbol,
+    } as PositionInfoParamsV5);
+    if (response.retCode !== 0) {
+      throw new Error(response.retMsg);
+    }
+    const positions = response.result.list;
+    console.log(
+      "Open Positions:",
+      positions.find((position) => position.side === "Sell")
+    );
+    return positions.find((position) => position.side === side) || null;
+  } catch (error) {
+    console.error("Error fetching open positions:", error);
+    throw error;
+  }
+}
+
+const getInstrumentInfo = async (
+  symbol: string
+): Promise<LinearInverseInstrumentInfoV5> => {
+  let instrumentsInfo = fs.readFileSync("coins.json", { encoding: "utf-8" });
+  let parsedInstrumentsInfo = JSON.parse(instrumentsInfo);
+  if (parsedInstrumentsInfo[symbol]) {
+    let instInfo = parsedInstrumentsInfo[symbol] as APIResponseV3WithTime<
+      InstrumentInfoResponseV5<"linear">
+    >;
+    console.log("got instrument info from fs");
+    return instInfo.result.list[0];
+  } else {
+    const instrumentsInfo = await client.getInstrumentsInfo({
+      category: "linear",
+      symbol,
+    });
+    if (instrumentsInfo.result.list.length == 0) {
+      throw new Error("invalid symbol");
+    }
+    parsedInstrumentsInfo[symbol] = instrumentsInfo;
+    fs.writeFileSync(
+      "coins.json",
+      JSON.stringify(parsedInstrumentsInfo, null, 2)
+    );
+    console.log("got instrument info from server");
+
+    return instrumentsInfo.result.list[0];
+  }
+};
+
+async function fetchClosedPnL(
+  symbol: string,
+  count: number
+): Promise<TradeSummary[]> {
+  try {
+    const response = await client.getClosedPnL({
+      category: "linear",
+      symbol,
+      limit: count,
+    });
+
+    if (response.retCode !== 0) {
+      throw new Error(response.retMsg);
+    }
+
+    return response.result.list.map((trade) => ({
+      symbol: trade.symbol,
+      side: trade.side as "Buy" | "Sell",
+      entryPrice: parseFloat(trade.avgEntryPrice),
+      exitPrice: parseFloat(trade.avgExitPrice),
+      qty: parseFloat(trade.closedSize),
+      pnl: parseFloat(trade.closedPnl),
+    }));
+  } catch (error) {
+    console.error("Error fetching closed PnL:", error);
     throw error;
   }
 }
@@ -120,6 +238,26 @@ async function fetchCurrentPrice(symbol: string): Promise<number> {
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const interval = 1000; // Update every 1 second
+    const totalSteps = ms / interval;
+    let currentStep = 0;
+
+    const intervalId = setInterval(() => {
+      currentStep++;
+      const progress = Math.floor((currentStep / totalSteps) * 50); // Progress bar width
+      const bar = "▓".repeat(progress) + "░".repeat(50 - progress);
+      process.stdout.write(`\r${bar}`);
+      if (currentStep >= totalSteps) {
+        clearInterval(intervalId);
+        process.stdout.write("\n");
+        resolve();
+      }
+    }, interval);
+  });
+}
+
 // Place a test order and start countdown
 placeTestOrder();
 
@@ -138,9 +276,16 @@ placeTestOrder();
 // api secret testnet
 // jf20rbP7sPtVQNl1o1EroYhvxFgXyCb6Xgqs
 
-// function getRandomNumber() {
-//   return Math.floor(Math.random() * 100) + 1;
-// }
+function getPositionSide() {
+  let randomNumber = Math.floor(Math.random() * 100) + 1;
+  if (randomNumber % 2 === 0) {
+    console.log("open LONG");
+    return "Buy";
+  } else {
+    console.log("open SHORT");
+    return "Sell";
+  }
+}
 
 // function countdown(from) {
 //   console.log(`countdown: ${from}`);
@@ -151,10 +296,4 @@ placeTestOrder();
 //   }
 // }
 
-// const randomNumber = getRandomNumber();
-// if (randomNumber % 2 === 0) {
-//   console.log("open LONG");
-// } else {
-//   console.log("open SHORT");
-// }
 // countdown(60);
