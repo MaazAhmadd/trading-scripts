@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
 import {
   APIResponseV3WithTime,
   CategoryV5,
@@ -27,18 +30,18 @@ interface TradeSummary {
 }
 
 const restClientOptions: RestClientOptions = {
-  key: "OzERtp8401q8IvaoXf",
-  secret: "f71RmLmFKhBBW9oVJt3Qjy4l5ChKejiQU74C",
+  key: process.env.API_KEY_DEMO,
+  secret: process.env.API_SECRET_DEMO,
   parseAPIRateLimits: true,
   demoTrading: true,
 };
 
 const client = new RestClientV5(restClientOptions);
 
-//   .then((r) => console.log(JSON.stringify(r, null, 2)));
 async function placeTestOrder() {
   // BTCUSDT ETHUSDT SOLUSDT AVAXUSDT 1000PEPEUSDT 10000SATSUSDT
-  const symbol = "10000SATSUSDT";
+  // MAPOUSDT
+  const symbol = "MAPOUSDT";
   const tradeCounts = 10;
   try {
     // Fetch account information
@@ -274,12 +277,15 @@ async function fetchCurrentPrice(symbol: string): Promise<number> {
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     const interval = 1000; // Update every 1 second
-    const totalSteps = ms / interval;
+    const totalSteps = Math.ceil(ms / interval);
     let currentStep = 0;
 
     const intervalId = setInterval(() => {
       currentStep++;
-      const progress = Math.floor((currentStep / totalSteps) * 50); // Progress bar width
+      const progress = Math.min(
+        Math.floor((currentStep / totalSteps) * 50),
+        50
+      ); // Progress bar width
       const bar = "▓".repeat(progress) + "░".repeat(50 - progress);
       process.stdout.write(`\r${bar}`);
       if (currentStep >= totalSteps) {
@@ -293,21 +299,6 @@ function delay(ms: number): Promise<void> {
 
 // Place a test order and start countdown
 placeTestOrder();
-
-// api key mainnet readonly
-// eVQpJFthmqqrqy2WNM
-// api secret mainnet readonly
-// 9RORXmo9sBzwlOhIrnLGHJmpjFqrYL2UQL5g
-
-// api key demo trading
-// OzERtp8401q8IvaoXf
-// api secret demo trading
-// f71RmLmFKhBBW9oVJt3Qjy4l5ChKejiQU74C
-
-// api key testnet
-// MqjZPCrDLJcR3DA3d6
-// api secret testnet
-// jf20rbP7sPtVQNl1o1EroYhvxFgXyCb6Xgqs
 
 function getPositionSide() {
   let randomNumber = Math.floor(Math.random() * 100) + 1;
