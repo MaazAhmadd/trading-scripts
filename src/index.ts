@@ -19,6 +19,7 @@ import {
 } from "bybit-api";
 
 import * as fs from "fs";
+import * as path from 'path';
 
 interface TradeSummary {
   symbol: string;
@@ -188,8 +189,15 @@ async function getOpenPositionForSide(
 const getInstrumentInfo = async (
   symbol: string
 ): Promise<LinearInverseInstrumentInfoV5> => {
-  let instrumentsInfo = fs.readFileSync("coins.json", { encoding: "utf-8" });
-  let parsedInstrumentsInfo = JSON.parse(instrumentsInfo);
+  const filePath = path.resolve(__dirname, 'coins.json');
+  let parsedInstrumentsInfo: Record<string, any> = {};
+
+  // Check if the file exists before attempting to read it
+  if (fs.existsSync(filePath)) {
+    const instrumentsInfo = fs.readFileSync(filePath, { encoding: "utf-8" });
+    parsedInstrumentsInfo = JSON.parse(instrumentsInfo);
+  }
+
   if (parsedInstrumentsInfo[symbol]) {
     let instInfo = parsedInstrumentsInfo[symbol] as APIResponseV3WithTime<
       InstrumentInfoResponseV5<"linear">
@@ -205,10 +213,7 @@ const getInstrumentInfo = async (
       throw new Error("invalid symbol");
     }
     parsedInstrumentsInfo[symbol] = instrumentsInfo;
-    fs.writeFileSync(
-      "coins.json",
-      JSON.stringify(parsedInstrumentsInfo, null, 2)
-    );
+    fs.writeFileSync(filePath, JSON.stringify(parsedInstrumentsInfo, null, 2));
     console.log("got instrument info from server");
 
     return instrumentsInfo.result.list[0];
@@ -318,13 +323,3 @@ function getPositionSize(min: number = 2000, max: number = 5000): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// function countdown(from) {
-//   console.log(`countdown: ${from}`);
-//   if (from > 0) {
-//       setTimeout(() => countdown(from - 1), 1000);
-//   } else {
-//       console.log('done!');
-//   }
-// }
-
-// countdown(60);
